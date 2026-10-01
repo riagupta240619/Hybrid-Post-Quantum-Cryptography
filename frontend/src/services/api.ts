@@ -1,4 +1,14 @@
-import type { Device, DeviceCreate, HealthResponse } from "../types/api";
+import type {
+  CryptoInfo,
+  DecryptResponse,
+  Device,
+  DeviceCreate,
+  EncryptResponse,
+  HealthResponse,
+  IotMessage,
+  IotPublishResponse,
+  IotStatus,
+} from "../types/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -33,5 +43,33 @@ export const api = {
     request<Device>("/api/v1/devices", {
       method: "POST",
       body: JSON.stringify(device),
+    }),
+  cryptoInfo: () => request<CryptoInfo>("/api/v1/crypto/info"),
+  encrypt: (payload: {
+    plaintext: string;
+    device_id: string;
+    associated_data?: string;
+    sequence?: number;
+  }) =>
+    request<EncryptResponse>("/api/v1/crypto/encrypt", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  decrypt: (packageData: EncryptResponse["package"]) =>
+    request<DecryptResponse>("/api/v1/crypto/decrypt", {
+      method: "POST",
+      body: JSON.stringify({ package: packageData }),
+    }),
+  iotStatus: () => request<IotStatus>("/api/v1/iot/status"),
+  iotMessages: () => request<IotMessage[]>("/api/v1/iot/messages"),
+  publishTelemetry: (payload: {
+    device_id: string;
+    telemetry: Record<string, unknown>;
+    associated_data?: string;
+    sequence: number;
+  }) =>
+    request<IotPublishResponse>("/api/v1/iot/publish", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

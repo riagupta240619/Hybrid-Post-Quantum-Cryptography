@@ -1,61 +1,26 @@
-import { ArrowRight, Cpu, Fingerprint, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Activity, ArrowRight, CheckCircle2, Cpu, Fingerprint, Radio, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
+import { api } from "../services/api";
+import type { Device, IotMessage, IotStatus } from "../types/api";
+
+function Stat({label,value,icon:Icon}:{label:string;value:string|number;icon:typeof Cpu}) {
+  return <Card className="p-5"><div className="flex items-center justify-between"><span className="text-xs uppercase tracking-wider text-muted">{label}</span><Icon size={18} className="text-mint"/></div><div className="mt-4 font-display text-3xl font-semibold">{value}</div></Card>;
+}
 
 export function DashboardPage() {
-  return (
-    <div className="space-y-8">
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase text-mint">
-          Platform overview
-        </p>
-        <h1 className="font-display text-3xl font-semibold">
-          Good to see you.
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-          PQShield is in its foundation phase. Device registration is live;
-          cryptographic workflows are not yet implemented.
-        </p>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5">
-          <Cpu className="mb-6 text-mint" size={20} />
-          <h2 className="font-display text-lg font-semibold">
-            Device registry
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Register and review devices persisted in PostgreSQL.
-          </p>
-          <Link
-            to="/devices"
-            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-mint hover:text-white"
-          >
-            Open devices <ArrowRight size={15} />
-          </Link>
-        </Card>
-        <Card className="p-5">
-          <ShieldCheck className="mb-6 text-amber" size={20} />
-          <h2 className="font-display text-lg font-semibold">
-            Service foundation
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Versioned API, database sessions, CORS, and health checks are
-            configured.
-          </p>
-          <div className="mt-5 text-xs font-medium text-muted">API v1</div>
-        </Card>
-        <Card className="p-5">
-          <Fingerprint className="mb-6 text-muted" size={20} />
-          <h2 className="font-display text-lg font-semibold">Cryptography</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            No encryption, key encapsulation, or digital signature operations
-            are available in Phase 1.
-          </p>
-          <div className="mt-5 text-xs font-medium text-amber">
-            Not implemented
-          </div>
-        </Card>
-      </div>
+  const [devices,setDevices]=useState<Device[]>([]); const [messages,setMessages]=useState<IotMessage[]>([]); const [iot,setIot]=useState<IotStatus|null>(null); const [error,setError]=useState<string|null>(null);
+  useEffect(()=>{let active=true;async function load(){try{const [d,m,s]=await Promise.all([api.listDevices(),api.iotMessages(),api.iotStatus()]);if(!active)return;setDevices(d);setMessages(m);setIot(s);setError(null)}catch(e){if(active)setError(e instanceof Error?e.message:"Could not load security overview")}}void load();const t=window.setInterval(()=>void load(),4000);return()=>{active=false;window.clearInterval(t)}},[]);
+  const verified=messages.filter(m=>m.security.verified===true).length; const blocked=messages.length-verified;
+  return <div className="space-y-7">
+    <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-mint">Security overview</p><h1 className="font-display text-3xl font-semibold md:text-4xl">PQShield Control Center</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Monitor hybrid post-quantum protection, encrypted IoT telemetry, and message verification.</p></div><div className={"inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold " + (iot?.connected?"border-mint/25 bg-mint/10 text-mint":"border-amber/25 bg-amber/10 text-amber")}><span className="h-2 w-2 rounded-full bg-current"/>MQTT {iot?.connected?"connected":"unavailable"}</div></div>
+    {error&&<div className="rounded-md border border-amber/25 bg-amber/10 px-4 py-3 text-sm text-amber">{error}</div>}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Registered devices" value={devices.length} icon={Cpu}/><Stat label="Recent messages" value={messages.length} icon={Radio}/><Stat label="Verified messages" value={verified} icon={ShieldCheck}/><Stat label="Blocked events" value={blocked} icon={TriangleAlert}/></div>
+    <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+      <Card className="overflow-hidden"><div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="font-display font-semibold">Live security activity</h2><p className="mt-1 text-xs text-muted">Latest events from the MQTT gateway</p></div><Activity size={18} className="text-mint"/></div><div className="divide-y divide-line">{messages.length===0?<p className="px-5 py-8 text-sm text-muted">No telemetry events yet. Start the simulator or publish a message.</p>:messages.slice(0,6).map((m,i)=>{const ok=m.security.verified===true;return <div key={m.received_at+i} className="flex items-start gap-3 px-5 py-4">{ok?<CheckCircle2 className="mt-0.5 shrink-0 text-mint" size={17}/>:<TriangleAlert className="mt-0.5 shrink-0 text-amber" size={17}/>}<div className="min-w-0 flex-1"><div className="flex flex-wrap justify-between gap-2"><span className="text-sm font-medium">{ok?"Telemetry accepted":"Message blocked"}</span><span className="text-xs text-muted">{new Date(m.received_at).toLocaleTimeString()}</span></div><p className="mt-1 truncate text-xs text-muted">{m.device_id??"Unknown device"} · {ok?"signature verified · replay check passed":m.error??"security validation failed"}</p></div></div>})}</div></Card>
+      <Card className="p-5"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-mint/10 text-mint"><Fingerprint size={20}/></div><div><h2 className="font-display font-semibold">Hybrid protection</h2><p className="text-xs text-muted">Active cryptographic stack</p></div></div><div className="mt-6 space-y-2">{["X25519","ML-KEM-768","HKDF-SHA384","AES-256-GCM","ML-DSA-65"].map(a=><div key={a} className="flex items-center justify-between rounded-md border border-line bg-ink px-3 py-2.5 text-sm"><span>{a}</span><CheckCircle2 size={15} className="text-mint"/></div>)}</div><Link to="/encryption-lab" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-mint hover:text-white">Open Encryption Lab <ArrowRight size={15}/></Link></Card>
     </div>
-  );
+    <Card className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display font-semibold">Current device fleet</h2><p className="mt-1 text-xs text-muted">Registered devices backed by PostgreSQL</p></div><Link to="/devices" className="text-xs font-semibold text-mint hover:text-white">Manage devices →</Link></div><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{devices.slice(0,4).map(d=><div key={d.id} className="rounded-md border border-line bg-ink p-4"><div className="flex items-center justify-between"><Cpu size={17} className="text-mint"/><span className="text-[10px] uppercase text-muted">{d.status}</span></div><div className="mt-4 truncate text-sm font-semibold">{d.device_id}</div><div className="mt-1 text-xs text-muted">{d.device_type}</div></div>)}{devices.length===0&&<p className="text-sm text-muted">Register a device to populate the fleet.</p>}</div></Card>
+  </div>;
 }
