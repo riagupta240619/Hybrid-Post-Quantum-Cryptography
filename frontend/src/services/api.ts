@@ -62,7 +62,7 @@ export const api = {
     }),
   iotStatus: () => request<IotStatus>("/api/v1/iot/status"),
   iotMessages: () => request<IotMessage[]>("/api/v1/iot/messages"),
-  publishTelemetry: (payload: {
+  provisionDevice: (deviceId: string) => request<CryptoIdentity>(`/api/v1/security/devices/${encodeURIComponent(deviceId)}/provision`, { method: "POST" }),\n  deviceCrypto: (deviceId: string) => request<CryptoIdentity>(`/api/v1/security/devices/${encodeURIComponent(deviceId)}/crypto`),\n  securityEvents: () => request<SecurityEvent[]>(`/api/v1/security/events`),\n  auditLogs: () => request<AuditLog[]>(`/api/v1/security/audit`),\n  runBenchmark: (payload: { iterations: number; payload_bytes: number }) => request<BenchmarkResponse>("/api/v1/benchmarks/run", { method: "POST", body: JSON.stringify(payload) }),\n  benchmarkHistory: () => request<Array<Record<string, unknown>>>("/api/v1/benchmarks/history"),\n  publishTelemetry: (payload: {
     device_id: string;
     telemetry: Record<string, unknown>;
     associated_data?: string;
