@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.v1.crypto import crypto_service
@@ -22,6 +24,7 @@ def mqtt_status() -> dict[str, object]:
         "connected": mqtt_gateway.connected,
         "broker": f"{settings.mqtt_host}:{settings.mqtt_port}",
         "telemetry_topic": mqtt_gateway.telemetry_topic,
+        "replay_protection": True,
     }
 
 
@@ -30,7 +33,7 @@ def publish_telemetry(request: IotPublishRequest) -> IotPublishResponse:
     if not mqtt_gateway.connected:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="MQTT broker is unavailable")
 
-    plaintext = __import__("json").dumps(
+    plaintext = json.dumps(
         request.telemetry,
         sort_keys=True,
         separators=(",", ":"),
@@ -39,6 +42,7 @@ def publish_telemetry(request: IotPublishRequest) -> IotPublishResponse:
         plaintext,
         request.associated_data.encode("utf-8"),
         request.device_id,
+        request.sequence,
     )
     try:
         mqtt_gateway.publish(request.device_id, package)
