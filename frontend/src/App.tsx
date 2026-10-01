@@ -7,6 +7,7 @@ import { LiveIotPage } from "./pages/LiveIotPage";
 import { SecurityEventsPage } from "./pages/SecurityEventsPage";
 import { BenchmarksPage } from "./pages/BenchmarksPage";
 import { AuditLogsPage } from "./pages/AuditLogsPage";
+import { HandshakePage } from "./pages/HandshakePage";
 
 export default function App() {
   return <Routes>
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="devices" element={<DevicesPage />} />
       <Route path="encryption-lab" element={<EncryptionLabPage />} />
       <Route path="live-iot" element={<LiveIotPage />} />
+      <Route path="handshake" element={<HandshakePage />} />
       <Route path="security-events" element={<SecurityEventsPage />} />
       <Route path="benchmarks" element={<BenchmarksPage />} />
       <Route path="audit-logs" element={<AuditLogsPage />} />
