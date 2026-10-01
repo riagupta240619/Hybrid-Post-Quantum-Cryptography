@@ -15,6 +15,18 @@ services:
       timeout: 5s
       retries: 10
 
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t pqshield/health -m ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -23,10 +35,16 @@ services:
       APP_ENV: ${APP_ENV:-development}
       APP_VERSION: ${APP_VERSION:-0.1.0}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173,http://localhost:8080}
+      MQTT_HOST: ${MQTT_HOST:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-pqshield}
+      MQTT_ENABLED: ${MQTT_ENABLED:-true}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      mqtt:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://localhost:8000/api/v1/health').read()"]
@@ -43,6 +61,24 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  simulator:
+    build:
+      context: ./backend
+    profiles: ["simulator"]
+    environment:
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
+      MQTT_HOST: ${MQTT_HOST:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-pqshield}
+      DEVICE_ID: ${DEVICE_ID:-temperature-sensor-001}
+      SIMULATOR_INTERVAL: ${SIMULATOR_INTERVAL:-5}
+    depends_on:
+      backend:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    command: ["python", "-m", "app.iot.simulator"]
 
 volumes:
   postgres_data:

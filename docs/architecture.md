@@ -1,41 +1,79 @@
-# PQShield Architecture — Phase 2
+# PQShield Architecture — Phase 3
 
-Phase 2 preserves the Phase 1 API/service/database separation and adds a dedicated cryptographic boundary under backend/app/crypto/.
+Phase 3 keeps the Phase 2 hybrid cryptographic boundary and adds an MQTT transport and IoT gateway.
 
-## Hybrid encryption flow
+## End-to-end flow
 
-1. The sender creates an ephemeral X25519 key pair.
-2. X25519 derives a classical shared secret with the recipient's X25519 public key.
-3. ML-KEM-768 encapsulates against the recipient's ML-KEM public key and produces a post-quantum shared secret plus KEM ciphertext.
-4. HKDF-SHA384 combines X25519_shared_secret || ML-KEM_shared_secret into a 32-byte AES key.
-5. AES-256-GCM encrypts the plaintext with a fresh 96-bit nonce and canonical associated data.
-6. The resulting package, including the ciphertext and algorithm identifiers, is signed with ML-DSA-65.
-7. Decryption verifies the ML-DSA signature before key derivation and AES-GCM decryption.
+1. A virtual IoT device creates telemetry.
+2. The simulator requests a hybrid encrypted package from the PQShield crypto API.
+3. The API uses X25519 + ML-KEM-768, HKDF-SHA384, AES-256-GCM, and ML-DSA-65.
+4. The simulator publishes the resulting package to `pqshield/<device_id>/telemetry` using MQTT QoS 1.
+5. Mosquitto transports the package without needing to understand its cryptographic contents.
+6. The PQShield MQTT gateway subscribes to the telemetry topic.
+7. The gateway verifies the ML-DSA signature before decrypting the AES-GCM payload.
+8. Successfully decrypted telemetry is retained in a bounded in-memory recent-message buffer for API inspection.
 
-## Package structure
+## Components
 
 ```text
-version
-algorithm identifiers
-device identifier
-ephemeral X25519 public key
-ML-KEM ciphertext
-AES-GCM nonce
-associated data
-AES-GCM ciphertext + authentication tag
-ML-DSA signature
++---------------------+
+| Virtual IoT Device  |
++----------+----------+
+           |
+           | encrypted package
+           v
++---------------------+
+| Mosquitto MQTT      |
+| pqshield/+/telemetry|
++----------+----------+
+           |
+           v
++---------------------+
+| PQShield Gateway    |
+| ML-DSA verify       |
+| X25519 + ML-KEM     |
+| AES-256-GCM decrypt |
++----------+----------+
+           |
+           v
++---------------------+
+| Recent telemetry    |
+| API view            |
++---------------------+
 ```
 
-The package is canonicalized as JSON using sorted keys and compact separators before signing. This makes the signed byte sequence deterministic.
+## MQTT topic model
 
-## Key lifecycle in Phase 2
+The gateway subscribes to:
 
-The backend generates one in-memory recipient X25519/ML-KEM identity and one ML-DSA signing identity when the crypto service is created. Private keys are not persisted in PostgreSQL and are never returned through /crypto/info.
+```text
+pqshield/+/telemetry
+```
 
-Restarting the backend generates a new identity, so encrypted packages from a previous process should not be expected to decrypt after restart.
+A device publishes to:
 
-## Security boundary
+```text
+pqshield/<device_id>/telemetry
+```
 
-The project does not implement ML-KEM or ML-DSA itself. It delegates those algorithms to pqcrypto and delegates X25519, HKDF, and AES-GCM to cryptography.
+The MQTT message itself is a JSON-encoded Phase 2 cryptographic package.
 
-This construction is for an academic platform and is not a claim of production protocol standardization or certification.
+## Trust boundary
+
+The MQTT broker is a transport component. It does not provide application-level confidentiality or authenticity for the telemetry package. Those properties are supplied by the PQShield cryptographic package.
+
+For local development, Mosquitto allows anonymous connections. This is deliberately limited to the research/demo environment. A production deployment should add TLS, authentication, topic ACLs, device identities, replay protection, and external key management.
+
+## Simulator limitation
+
+The Phase 3 simulator calls the PQShield crypto API before publishing. This is intentionally simple and reproducible. It demonstrates encrypted IoT transport and gateway processing without pretending that independent device provisioning has already been solved.
+
+A future device-identity phase should provision each device with its own signing/key-establishment identity and remove the simulator's dependency on the central crypto API.
+
+## Key lifecycle
+
+The Phase 2 in-memory key lifecycle remains unchanged. Restarting the backend creates a new cryptographic identity, so packages created under an older backend process are not expected to decrypt after restart.
+
+## Scope
+
+Phase 3 does not claim a standardized MQTT security protocol or production deployment. It is an academic integration layer showing how the hybrid cryptographic package can travel through an IoT messaging system.

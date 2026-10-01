@@ -2,129 +2,123 @@
 
 **Hybrid Post-Quantum Security Platform**
 
-PQShield is an academic software platform exploring a hybrid post-quantum security layer for IoT and cloud environments. The repository now contains the Phase 1 service foundation plus the first real cryptographic implementation in Phase 2.
+PQShield is an academic software platform demonstrating a hybrid security layer for IoT and cloud environments.
 
-> Phase 2 is an academic/research implementation. It uses established cryptographic libraries rather than implementing primitives from scratch. Private keys are kept in memory only; no production key-management system is claimed.
+## Current implementation
 
-## Phase 2 Cryptographic Design
+### Phase 2 — Hybrid cryptography
+- X25519 + ML-KEM-768 hybrid key establishment
+- HKDF-SHA384 key combination
+- AES-256-GCM payload encryption
+- ML-DSA-65 package authentication
+- Tamper detection before decryption
+- In-memory cryptographic identities for the research prototype
 
-PQShield uses a true hybrid public-key key-establishment construction:
+### Phase 3 — IoT/MQTT integration
+- Eclipse Mosquitto MQTT broker in Docker Compose
+- Secure telemetry topic convention: `pqshield/<device_id>/telemetry`
+- FastAPI MQTT gateway
+- Hybrid-encrypted telemetry packages transported over MQTT
+- Gateway-side ML-DSA verification and AES-GCM decryption
+- Recent decrypted telemetry view through the API
+- Repeatable virtual temperature-sensor simulator
+- Simulator runs through the optional Docker Compose `simulator` profile
+
+The Phase 3 simulator intentionally uses the existing crypto API to obtain a signed hybrid package and then sends that package over MQTT. This keeps the demonstration reproducible while making the transport and gateway flow explicit. A later phase can introduce independent per-device cryptographic identities and key provisioning.
+
+## Architecture
 
 ```text
-Plaintext
-   |
-AES-256-GCM <--- HKDF-SHA384 <--- X25519 shared secret
-   |                         ^
-   |                         |
-Encrypted package            +--- ML-KEM-768 shared secret
-   |
-ML-DSA-65 signature
-   |
-Signed encrypted package
+Virtual IoT Device
+      |
+      | request hybrid package
+      v
+PQShield Crypto API
+      |
+      | X25519 + ML-KEM-768
+      | HKDF-SHA384
+      | AES-256-GCM
+      | ML-DSA-65
+      v
+Encrypted Package
+      |
+      | MQTT QoS 1
+      v
+Mosquitto Broker
+      |
+      v
+PQShield MQTT Gateway
+      |
+      | verify signature
+      | derive key
+      | decrypt telemetry
+      v
+Telemetry API
 ```
 
-### Algorithms
-
-| Component | Algorithm | Purpose |
-| --- | --- | --- |
-| Classical key establishment | X25519 | Provides the classical shared secret |
-| Post-quantum KEM | ML-KEM-768 | Provides a post-quantum shared secret |
-| Key combiner | HKDF-SHA384 | Combines both shared secrets into a 256-bit AES key |
-| Payload encryption | AES-256-GCM | Confidentiality and authenticated encryption |
-| Digital signature | ML-DSA-65 | Authenticates the canonical encrypted package |
-
-The hybrid combiner is the project-level construction:
-`HKDF-SHA384(X25519_shared_secret || ML-KEM_shared_secret)`
-This is documented explicitly and is not presented as a standardized wire protocol.
-
-## Phase 2 API
-
-| Method | Endpoint | Behavior |
-| --- | --- | --- |
-| GET | /api/v1/crypto/info | Public algorithm and public-key metadata |
-| POST | /api/v1/crypto/encrypt | Hybrid-encrypt UTF-8 plaintext and return a signed package |
-| POST | /api/v1/crypto/decrypt | Verify, decapsulate, derive the AES key, and decrypt a package |
-
-Example encryption request:
-
-```json
-{
-  "plaintext": "temperature=24.5C",
-  "device_id": "sensor-001",
-  "associated_data": "sensor=v1"
-}
-```
-
-The response contains the encrypted package, including algorithm identifiers, an ephemeral X25519 public key, ML-KEM ciphertext, nonce, AES-GCM ciphertext, associated data, and ML-DSA signature. Private keys are never returned by the API.
-
-## Phase 1 Scope
-
-- FastAPI application with environment configuration, CORS, SQLAlchemy, and /api/v1 routes.
-- PostgreSQL-backed device creation, listing, and retrieval.
-- React, TypeScript, Vite, and Tailwind application shell with working device management.
-- Docker Compose development environment for PostgreSQL, backend, and frontend.
-- Pytest backend tests using an isolated in-memory SQLite database.
-
-## Technology Stack
+## Technology stack
 
 - Frontend: React, TypeScript, Vite, Tailwind CSS
-- Backend: Python 3.12, FastAPI, Pydantic, SQLAlchemy
-- Cryptography: cryptography, pqcrypto
+- Backend: Python, FastAPI, SQLAlchemy
+- Cryptography: cryptography + pqcrypto
+- Messaging: Eclipse Mosquitto + Paho MQTT
 - Database: PostgreSQL
-- Infrastructure: Docker, Docker Compose
-- Tests: Pytest, FastAPI TestClient, isolated SQLite
+- Infrastructure: Docker Compose
+- Tests: Pytest
 
-## Requirements
+## Run with Docker Compose
 
-- Docker Engine/Desktop with the Compose plugin for containerized use.
-- For local development: Python 3.11+, Node.js 20+, npm, and a PostgreSQL instance.
-
-## Docker Compose
-
-From the repository root:
+Start the platform:
 
 ```bash
 docker compose up --build
 ```
 
-Open the frontend at http://localhost:8080. The backend is available at http://localhost:8000 and its interactive API documentation is at http://localhost:8000/docs.
+Frontend: http://localhost:8080  
+Backend: http://localhost:8000  
+Swagger UI: http://localhost:8000/docs  
+MQTT broker: localhost:1883
 
-## Local Development
-
-Backend:
+Run the virtual IoT simulator in a second command:
 
 ```bash
-python -m venv .venv
-python -m pip install -r backend/requirements.txt
+docker compose --profile simulator up simulator
+```
+
+The simulator publishes temperature, humidity, battery, and sequence telemetry every five seconds by default.
+
+## Phase 3 API
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/v1/iot/status` | MQTT broker/gateway status |
+| POST | `/api/v1/iot/publish` | Encrypt telemetry and publish it to MQTT |
+| GET | `/api/v1/iot/messages` | View recently received/decrypted telemetry |
+
+Example:
+
+```json
+{
+  "device_id": "temperature-sensor-001",
+  "telemetry": {
+    "temperature_c": 24.5,
+    "humidity_percent": 52.1,
+    "battery_percent": 91
+  },
+  "associated_data": "temperature-sensor-001"
+}
+```
+
+The broker payload contains the encrypted package, not plaintext telemetry.
+
+## Tests
+
+From the repository root:
+
+```bash
 python -m pytest backend/tests -q
-python -m uvicorn app.main:app --app-dir backend --reload --port 8000
 ```
 
-Frontend:
+## Security scope
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Phase 2 Testing
-
-The Phase 2 tests cover:
-
-- successful hybrid encrypt/decrypt round trip;
-- presence of X25519, ML-KEM-768, AES-256-GCM, and ML-DSA-65 in the package;
-- rejection of modified ciphertext through ML-DSA authentication;
-- rejection of packages created under a different in-memory key identity;
-- prevention of private-key exposure through the public metadata endpoint.
-
-## Roadmap
-
-1. Phase 1: service foundation and PostgreSQL-backed device registry. Complete.
-2. Phase 2: real cryptographic provider boundary and hybrid encrypt/decrypt API. Current branch.
-3. Phase 3: device simulation and MQTT transport.
-4. Phase 4: platform features, audit events, key-management abstraction, and dashboard integration.
-5. Phase 5: classical vs PQC vs hybrid benchmarks and research reporting.
-6. Phase 6: scalable workers and load testing.
-
-The Phase 2 in-memory key lifecycle is not production key management. A later phase should introduce a KMS/Vault/HSM abstraction before persistent deployment.
+This is a research/demo platform, not a production protocol implementation. Private cryptographic keys remain in memory in the current phase. The MQTT broker is intentionally configured without authentication for local development; production deployment should use TLS, broker authentication/authorization, device identities, and external key management.

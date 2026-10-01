@@ -7,6 +7,7 @@ class EncryptRequest(BaseModel):
     plaintext: str = Field(min_length=1, max_length=1_000_000)
     device_id: str = Field(default="demo-device", min_length=1, max_length=128)
     associated_data: str = Field(default="", max_length=4_096)
+    sequence: int | None = Field(default=None, ge=0)
 
 
 class EncryptResponse(BaseModel):
