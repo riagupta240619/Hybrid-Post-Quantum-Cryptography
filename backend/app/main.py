@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import models
 from app.api.v1.router import api_router
+from app.api.v1.iot import mqtt_gateway
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -18,12 +19,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         if app_settings.app_env != "test":
             Base.metadata.create_all(bind=engine)
-        yield
+            if app_settings.mqtt_enabled:
+                mqtt_gateway.start()
+        try:
+            yield
+        finally:
+            if app_settings.app_env != "test" and app_settings.mqtt_enabled:
+                mqtt_gateway.stop()
 
     application = FastAPI(
         title="PQShield API",
         version=app_settings.app_version,
-        description="Phase 2 hybrid cryptography API using real standardized cryptographic primitives.",
+        description="Phase 3 hybrid cryptography API with MQTT IoT integration.",
         lifespan=lifespan,
     )
     application.add_middleware(
