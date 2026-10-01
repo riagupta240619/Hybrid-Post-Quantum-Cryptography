@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class MqttGateway:
-    """MQTT transport bridge that decrypts PQShield packages received from devices."""
+    """MQTT transport bridge with authenticated decryption and replay protection."""
 
     def __init__(
         self,
@@ -29,6 +29,7 @@ class MqttGateway:
         self.port = port
         self.topic_prefix = topic_prefix.strip("/")
         self._messages: deque[dict[str, Any]] = deque(maxlen=100)
+        self._highest_sequence: dict[str, int] = {}
         self._lock = threading.Lock()
         self._connected = False
         self._client = mqtt.Client(
@@ -75,7 +76,24 @@ class MqttGateway:
         with self._lock:
             return list(self._messages)
 
-    def _on_connect(self, _client: mqtt.Client, _userdata: Any, _flags: Any, reason_code: Any, _properties: Any = None) -> None:
+    def _record_rejection(self, topic: str, received_at: str, error: str) -> None:
+        logger.warning("Rejected MQTT package: %s", error)
+        with self._lock:
+            self._messages.appendleft({
+                "topic": topic,
+                "received_at": received_at,
+                "security": {"verified": False, "replay_protection": True},
+                "error": error,
+            })
+
+    def _on_connect(
+        self,
+        _client: mqtt.Client,
+        _userdata: Any,
+        _flags: Any,
+        reason_code: Any,
+        _properties: Any = None,
+    ) -> None:
         if reason_code == 0:
             self._connected = True
             self._client.subscribe(self.telemetry_topic, qos=1)
@@ -83,7 +101,14 @@ class MqttGateway:
         else:
             logger.error("MQTT connection failed: %s", reason_code)
 
-    def _on_disconnect(self, _client: mqtt.Client, _userdata: Any, _disconnect_flags: Any, reason_code: Any, _properties: Any = None) -> None:
+    def _on_disconnect(
+        self,
+        _client: mqtt.Client,
+        _userdata: Any,
+        _disconnect_flags: Any,
+        reason_code: Any,
+        _properties: Any = None,
+    ) -> None:
         self._connected = False
         logger.warning("MQTT gateway disconnected: %s", reason_code)
 
@@ -91,9 +116,26 @@ class MqttGateway:
         received_at = datetime.now(timezone.utc).isoformat()
         try:
             package = json.loads(message.payload.decode("utf-8"))
+            device_id = str(package["device_id"])
+            topic_parts = message.topic.strip("/").split("/")
+            if len(topic_parts) < 3 or topic_parts[-2] != device_id or topic_parts[-1] != "telemetry":
+                raise CryptoPackageError("MQTT topic does not match package device_id")
+
+            sequence = package.get("sequence")
+            if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0:
+                raise CryptoPackageError("Missing or invalid replay-protection sequence")
+
             plaintext = self.crypto_service.decrypt(package)
             telemetry = json.loads(plaintext.decode("utf-8"))
-            device_id = str(package["device_id"])
+
+            with self._lock:
+                highest = self._highest_sequence.get(device_id)
+                if highest is not None and sequence <= highest:
+                    raise CryptoPackageError(
+                        f"Replay detected for {device_id}: sequence {sequence} is not newer than {highest}"
+                    )
+                self._highest_sequence[device_id] = sequence
+
             event = {
                 "device_id": device_id,
                 "topic": message.topic,
@@ -101,6 +143,8 @@ class MqttGateway:
                 "telemetry": telemetry,
                 "security": {
                     "verified": True,
+                    "replay_protection": True,
+                    "sequence": sequence,
                     "pqc_kem": package["pqc_kem"],
                     "classical_kem": package["classical_kem"],
                     "signature": package["signature"],
@@ -108,13 +152,8 @@ class MqttGateway:
                 },
             }
         except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError, CryptoPackageError) as error:
-            logger.warning("Rejected MQTT package: %s", error)
-            event = {
-                "topic": message.topic,
-                "received_at": received_at,
-                "security": {"verified": False},
-                "error": str(error),
-            }
+            self._record_rejection(message.topic, received_at, str(error))
+            return
 
         with self._lock:
             self._messages.appendleft(event)
