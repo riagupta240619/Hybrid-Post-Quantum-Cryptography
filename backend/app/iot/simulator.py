@@ -16,12 +16,13 @@ DEVICE_ID = os.getenv("DEVICE_ID", "temperature-sensor-001")
 INTERVAL = float(os.getenv("SIMULATOR_INTERVAL", "5"))
 
 
-def request_encrypted_package(telemetry: dict[str, object]) -> dict[str, object]:
+def request_encrypted_package(telemetry: dict[str, object], sequence: int) -> dict[str, object]:
     body = json.dumps(
         {
             "plaintext": json.dumps(telemetry, sort_keys=True, separators=(",", ":")),
             "device_id": DEVICE_ID,
             "associated_data": DEVICE_ID,
+            "sequence": sequence,
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -39,16 +40,18 @@ def main() -> None:
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
     client.loop_start()
     topic = f"{TOPIC_PREFIX}/{DEVICE_ID}/telemetry"
+    sequence = 0
 
     try:
         while True:
+            sequence += 1
             telemetry = {
                 "temperature_c": round(random.uniform(20.0, 30.0), 2),
                 "humidity_percent": round(random.uniform(35.0, 65.0), 2),
                 "battery_percent": random.randint(65, 100),
-                "sequence": int(time.time()),
+                "sequence": sequence,
             }
-            package = request_encrypted_package(telemetry)
+            package = request_encrypted_package(telemetry, sequence)
             payload = json.dumps(package, sort_keys=True, separators=(",", ":"))
             result = client.publish(topic, payload=payload, qos=1)
             result.wait_for_publish()
