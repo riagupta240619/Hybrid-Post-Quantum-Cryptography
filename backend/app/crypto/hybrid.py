@@ -90,7 +90,13 @@ class HybridCryptoService:
             "mldsa_public_key": self._b64(self._mldsa_public),
         }
 
-    def encrypt(self, plaintext: bytes, associated_data: bytes = b"", device_id: str = "demo-device") -> dict[str, Any]:
+    def encrypt(
+        self,
+        plaintext: bytes,
+        associated_data: bytes = b"",
+        device_id: str = "demo-device",
+        sequence: int | None = None,
+    ) -> dict[str, Any]:
         ephemeral_private = X25519PrivateKey.generate()
         ephemeral_public = ephemeral_private.public_key()
         classical_secret = ephemeral_private.exchange(self._x25519_public)
@@ -113,6 +119,11 @@ class HybridCryptoService:
             "nonce": self._b64(nonce),
             "associated_data": self._b64(associated_data),
         }
+        if sequence is not None:
+            if sequence < 0:
+                raise ValueError("sequence must be non-negative")
+            package["sequence"] = sequence
+
         aad = self._canonical(package)
         ciphertext = AESGCM(aes_key).encrypt(nonce, plaintext, aad)
         package["ciphertext"] = self._b64(ciphertext)
@@ -135,6 +146,10 @@ class HybridCryptoService:
             raise CryptoPackageError("Unsupported key establishment algorithms")
         if package["aead"] != self.AEAD or package["signature"] != self.SIGNATURE or package["kdf"] != self.KDF:
             raise CryptoPackageError("Unsupported cryptographic parameters")
+        if "sequence" in package and (
+            not isinstance(package["sequence"], int) or isinstance(package["sequence"], bool) or package["sequence"] < 0
+        ):
+            raise CryptoPackageError("Invalid replay-protection sequence")
 
         signature = self._unb64(package["signature_value"])
         signed_package = dict(package)
