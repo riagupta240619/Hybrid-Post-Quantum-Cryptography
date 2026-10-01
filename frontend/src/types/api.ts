@@ -46,13 +46,8 @@ export interface EncryptPackage {
   sequence?: number;
 }
 
-export interface EncryptResponse {
-  package: EncryptPackage;
-}
-
-export interface DecryptResponse {
-  plaintext: string;
-}
+export interface EncryptResponse { package: EncryptPackage; }
+export interface DecryptResponse { plaintext: string; }
 
 export interface IotStatus {
   enabled: boolean;
@@ -60,6 +55,7 @@ export interface IotStatus {
   broker: string;
   telemetry_topic: string;
   replay_protection: boolean;
+  device_identity_mode: boolean;
 }
 
 export interface IotMessage {
@@ -78,8 +74,68 @@ export interface IotPublishResponse {
   package: EncryptPackage;
 }
 
-export interface CryptoIdentity { device_id:string; version:number; classical_kem:string; pqc_kem:string; aead:string; signature:string; kdf:string; x25519_public_key:string; mlkem_public_key:string; mldsa_public_key:string; private_keys_exposed:boolean; key_storage:string; }
-export interface SecurityEvent { id:number; device_id:string|null; event_type:string; result:string; verified:boolean; sequence:number|null; details:Record<string,unknown>; created_at:string; }
-export interface AuditLog { id:number; action:string; actor:string; device_id:string|null; details:Record<string,unknown>; created_at:string; }
-export interface BenchmarkResult { mode:string; iterations:number; payload_bytes:number; keygen_ms:number; encapsulation_ms:number; encryption_ms:number; signing_ms:number; verification_ms:number; decapsulation_ms:number; decryption_ms:number; total_ms:number; package_bytes:number; }
-export interface BenchmarkResponse { run_id:number; results:BenchmarkResult[]; created_at:string; }
+export interface CryptoIdentity {
+  device_id: string;
+  version: number;
+  classical_kem: string;
+  pqc_kem: string;
+  aead: string;
+  signature: string;
+  kdf: string;
+  x25519_public_key: string;
+  mlkem_public_key: string;
+  mldsa_public_key: string;
+  private_keys_exposed: boolean;
+  key_storage: string;
+}
+
+export interface SecurityEvent {
+  id: number;
+  device_id: string | null;
+  event_type: string;
+  result: string;
+  verified: boolean;
+  sequence: number | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditLog {
+  id: number;
+  action: string;
+  actor: string;
+  device_id: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface BenchmarkResult {
+  mode: string;
+  iterations: number;
+  payload_bytes: number;
+  keygen_ms: number;
+  encapsulation_ms: number;
+  encryption_ms: number;
+  signing_ms: number;
+  verification_ms: number;
+  decapsulation_ms: number;
+  decryption_ms: number;
+  total_ms: number;
+  package_bytes: number;
+}
+
+export interface BenchmarkResponse {
+  run_id: number;
+  results: BenchmarkResult[];
+  created_at: string;
+}
+
+export interface BenchmarkHistoryItem {
+  id: number;
+  mode: string;
+  iterations: number;
+  payload_bytes: number;
+  total_ms: number;
+  package_bytes: number;
+  created_at: string;
+}
