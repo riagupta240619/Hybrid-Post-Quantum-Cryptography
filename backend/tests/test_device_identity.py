@@ -11,10 +11,22 @@ def test_device_identity_round_trip():
     assert package["pqc_kem"]=="ML-KEM-768"
 
 def test_private_keys_are_not_in_public_metadata():
-    registry=DeviceCryptoRegistry(); registry.provision("sensor-a")
-    metadata=registry.public_metadata("sensor-a")
+    registry = DeviceCryptoRegistry()
+    registry.provision("sensor-a")
+
+    metadata = registry.public_metadata("sensor-a")
+
     assert metadata["private_keys_exposed"] is False
-    assert "private" not in json.dumps(metadata).lower()
+    assert metadata["key_storage"] == "process-memory"
+
+    # Public metadata may describe private-key handling,
+    # but must not contain actual private-key material.
+    assert "x25519_private_key" not in metadata
+    assert "mlkem_private_key" not in metadata
+    assert "mldsa_private_key" not in metadata
+
+    serialized = json.dumps(metadata).lower()
+    assert "private_key_material" not in serialized
 
 def test_unknown_sender_is_rejected():
     registry=DeviceCryptoRegistry(); registry.provision("gateway"); registry.provision("sender")
