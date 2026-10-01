@@ -38,3 +38,60 @@ def test_iot_publish_uses_hybrid_crypto_and_mqtt(monkeypatch) -> None:
     assert package["pqc_kem"] == "ML-KEM-768"
     assert package["signature"] == "ML-DSA-65"
     assert package["aead"] == "AES-256-GCM"
+
+
+def test_mqtt_gateway_accepts_and_decrypts_valid_package(monkeypatch) -> None:
+    import json
+    from collections import deque
+    from types import SimpleNamespace
+
+    from app.api.v1.crypto import crypto_service
+
+    monkeypatch.setattr(mqtt_gateway, "_messages", deque(maxlen=100))
+    package = crypto_service.encrypt(
+        json.dumps({"temperature_c": 24.5}, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+        b"temperature-sensor-001",
+        "temperature-sensor-001",
+    )
+    message = SimpleNamespace(
+        topic="pqshield/temperature-sensor-001/telemetry",
+        payload=json.dumps(package, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+    )
+
+    mqtt_gateway._on_message(None, None, message)
+
+    event = mqtt_gateway.recent_messages()[0]
+    assert event["device_id"] == "temperature-sensor-001"
+    assert event["security"]["verified"] is True
+    assert event["telemetry"]["temperature_c"] == 24.5
+    assert "error" not in event
+
+
+def test_mqtt_gateway_rejects_tampered_package(monkeypatch) -> None:
+    import copy
+    import json
+    from collections import deque
+    from types import SimpleNamespace
+
+    from app.api.v1.crypto import crypto_service
+
+    monkeypatch.setattr(mqtt_gateway, "_messages", deque(maxlen=100))
+    package = crypto_service.encrypt(
+        b'{"temperature_c":24.5}',
+        b"temperature-sensor-001",
+        "temperature-sensor-001",
+    )
+    tampered = copy.deepcopy(package)
+    tampered["ciphertext"] = tampered["ciphertext"][:-2] + (
+        "AA" if tampered["ciphertext"][-2:] != "AA" else "BB"
+    )
+    message = SimpleNamespace(
+        topic="pqshield/temperature-sensor-001/telemetry",
+        payload=json.dumps(tampered, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+    )
+
+    mqtt_gateway._on_message(None, None, message)
+
+    event = mqtt_gateway.recent_messages()[0]
+    assert event["security"]["verified"] is False
+    assert "signature" in event["error"].lower()
