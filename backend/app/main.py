@@ -23,7 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(
         title="PQShield API",
         version=app_settings.app_version,
-        description="Phase 1 device registry API. Cryptographic functionality is not implemented.",
+        description="Phase 2 hybrid cryptography API using real standardized cryptographic primitives.",
         lifespan=lifespan,
     )
     application.add_middleware(
