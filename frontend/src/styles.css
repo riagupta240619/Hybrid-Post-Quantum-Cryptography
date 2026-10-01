@@ -10,15 +10,26 @@
   background: #111719;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-image: radial-gradient(ellipse at 88% 5%, rgba(133, 226, 189, 0.055), transparent 35%);
+  background-image: radial-gradient(
+    ellipse at 88% 5%,
+    rgba(133, 226, 189, 0.055),
+    transparent 35%
+  );
 }
 
-button, input { font: inherit; }
+button,
+input {
+  font: inherit;
+}
 
-::selection { background: rgba(133, 226, 189, 0.25); }
+::selection {
+  background: rgba(133, 226, 189, 0.25);
+}

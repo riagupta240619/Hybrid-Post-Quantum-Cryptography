@@ -10,9 +10,18 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="devices" element={<DevicesPage />} />
-        <Route path="encryption-lab" element={<PlaceholderPage title="Encryption Lab" />} />
-        <Route path="benchmarks" element={<PlaceholderPage title="Benchmarks" />} />
-        <Route path="audit-logs" element={<PlaceholderPage title="Audit Logs" />} />
+        <Route
+          path="encryption-lab"
+          element={<PlaceholderPage title="Encryption Lab" />}
+        />
+        <Route
+          path="benchmarks"
+          element={<PlaceholderPage title="Benchmarks" />}
+        />
+        <Route
+          path="audit-logs"
+          element={<PlaceholderPage title="Audit Logs" />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
