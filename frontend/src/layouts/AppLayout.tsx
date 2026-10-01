@@ -10,6 +10,7 @@ const navigation: { label: string; path: string; icon: LucideIcon }[] = [
   { label: "Devices", path: "/devices", icon: Cpu },
   { label: "Encryption Lab", path: "/encryption-lab", icon: Fingerprint },
   { label: "Live IoT", path: "/live-iot", icon: Radio },
+  { label: "Handshake", path: "/handshake", icon: Shield },
   { label: "Security Events", path: "/security-events", icon: ShieldAlert },
   { label: "Benchmarks", path: "/benchmarks", icon: BarChart3 },
   { label: "Audit Logs", path: "/audit-logs", icon: Activity },
