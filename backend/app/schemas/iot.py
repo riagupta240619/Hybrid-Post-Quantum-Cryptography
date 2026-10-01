@@ -7,6 +7,7 @@ class IotPublishRequest(BaseModel):
     device_id: str = Field(min_length=1, max_length=128)
     telemetry: dict[str, Any]
     associated_data: str = Field(default="", max_length=4096)
+    sequence: int = Field(ge=0)
 
 
 class IotPublishResponse(BaseModel):
