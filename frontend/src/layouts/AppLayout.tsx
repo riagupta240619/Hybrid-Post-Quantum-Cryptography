@@ -34,7 +34,7 @@ export function AppLayout() {
       <nav aria-label="Main navigation" className="flex gap-1 overflow-x-auto p-3 md:block md:space-y-1">
         {navigation.map(({label,path,icon:Icon}) => <NavLink key={path} to={path} end={path==="/"} className={({isActive}) => "flex shrink-0 items-center gap-3 rounded-md px-3 py-2.5 text-sm transition " + (isActive ? "bg-[#273432] font-semibold text-mint" : "text-muted hover:bg-panel hover:text-white")}><Icon size={17} strokeWidth={1.8}/>{label}</NavLink>)}
       </nav>
-      <div className="hidden px-4 pb-5 md:absolute md:bottom-0 md:block"><div className="flex items-center gap-2 border-t border-line pt-4 text-xs text-muted"><Blocks size={14}/>Phase 3 · Live crypto + IoT</div></div>
+      <div className="hidden px-4 pb-5 md:absolute md:bottom-0 md:block"><div className="flex items-center gap-2 border-t border-line pt-4 text-xs text-muted"><Blocks size={14}/>Phase 4–6 · Platform + research + scale</div></div>
     </aside>
     <div className="min-w-0">
       <header className="flex h-16 items-center justify-between border-b border-line px-5 md:px-8">
