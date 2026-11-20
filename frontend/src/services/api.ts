@@ -15,8 +15,13 @@ import type {
   SecurityEvent,
 } from "../types/api";
 
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = configuredApiBase
+  ? (configuredApiBase.startsWith("http") ? configuredApiBase : `https://${configuredApiBase}`).replace(/\/$/, "")
+  : "";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
