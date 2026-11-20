@@ -18,7 +18,23 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
-        return [origin.strip() for origin in self.frontend_origin.split(",") if origin.strip()]
+        origins = []
+        for origin in self.frontend_origin.split(","):
+            origin = origin.strip().rstrip("/")
+            if origin and not origin.startswith(("http://", "https://")):
+                origin = f"https://{origin}"
+            if origin:
+                origins.append(origin)
+        return origins
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        # Render supplies PostgreSQL URLs using the generic postgres:// scheme.
+        if self.database_url.startswith("postgres://"):
+            return self.database_url.replace("postgres://", "postgresql+psycopg://", 1)
+        if self.database_url.startswith("postgresql://"):
+            return self.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return self.database_url
 
 
 @lru_cache
